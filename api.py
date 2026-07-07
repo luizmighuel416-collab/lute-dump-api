@@ -9,7 +9,7 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 ROOT = pathlib.Path(__file__).resolve().parent
-RUN_SCRIPT = ROOT / "runner.sh"
+RUN_SCRIPT = ROOT / "run.ps1"
 TIMEOUT = 120
 
 TIME_RE = re.compile(r"Finished processing in ([\d.]+) seconds", re.I)
