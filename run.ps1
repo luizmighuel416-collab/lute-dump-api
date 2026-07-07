@@ -1,16 +1,11 @@
-# 69ms - unveilr logger runner
-# Usage:  .\run.ps1 <input.lua> [out.lua] [extra settings...]
-# Example: .\run.ps1 sample.lua out.lua debug
-param(
-    [Parameter(Mandatory = $true)] [string]$Input,
-    [string]$Out = "out.lua",
-    [Parameter(ValueFromRemainingArguments = $true)] [string[]]$Extra
-)
+#!/bin/bash
 
-# lute.exe (runs hookOp) must be referenced by absolute path; process.exec does
-# not search the current directory on Windows.
-$env:HOOKOP_BIN = Join-Path $PSScriptRoot "lute.exe"
+INPUT="${1:?Usage: ./run.sh <input> [out]}"
+OUT="${2:-out.lua}"
 
-Set-Location $PSScriptRoot
-lune run main.luau $Input "out=$Out" @Extra
-Write-Host "Done -> $Out"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export HOOKOP_BIN="$SCRIPT_DIR/lute"
+
+cd "$SCRIPT_DIR"
+./lune run main.luau "$INPUT" "out=$OUT" "$@"
+echo "Done -> $OUT"
