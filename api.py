@@ -1,82 +1,99 @@
+"""Wrapper para API Speack e 69ms de deobfuscacao."""
 import os
-import re
-import time
-import pathlib
-import subprocess
-import tempfile
+import requests
 
-from flask import Flask, request, jsonify
-
-app = Flask(__name__)
-
-ROOT = pathlib.Path(__file__).resolve().parent
-RUN_SCRIPT = ROOT / "run.sh"
-TIMEOUT = 120
-
-TIME_RE = re.compile(r"Finished processing in ([\d.]+) seconds", re.I)
+API_URL = "https://api-speack.onrender.com/speack/api/v1/deobf"
+API_69MS = "https://web-production-99b02d.up.railway.app/deobfuscate"
 
 
-def run_lute_dump(source_code: str) -> dict:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = pathlib.Path(tmpdir)
-        in_file = tmp / "input.lua"
-        out_file = tmp / "out.lua"
+def _clean_output(text: str) -> str:
+    lines = text.splitlines()
+    if lines and "Speack" in lines[0]:
+        lines[0] = "-- Deobf by Speack | https://discord.gg/SxfqCrd952"
+    return "\n".join(lines)
 
-        in_file.write_text(source_code, encoding="utf-8", errors="ignore")
 
-        started = time.perf_counter()
-        proc = subprocess.Popen(
-            ["bash", str(RUN_SCRIPT), str(in_file), str(out_file)],
-            cwd=str(ROOT),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+def deobfuscate(code: str, mode: str = "moonsecv3") -> str:
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".lua", delete=False) as f:
+        f.write(code)
+        tmp_path = f.name
+
+    try:
+        with open(tmp_path, "rb") as f:
+            response = requests.post(
+                API_URL,
+                files={"file": f},
+                timeout=120
+            )
+
+        if response.status_code == 200:
+            return _clean_output(response.text)
+        else:
+            return f"Erro da API: HTTP {response.status_code} - {response.text}"
+    except requests.RequestException as e:
+        return f"Erro de conexao: {e}"
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+def deobfuscate_from_url(url: str, mode: str = "moonsecv3") -> str:
+    try:
+        response = requests.post(
+            API_URL,
+            data={"url": url},
+            timeout=120
         )
 
-        try:
-            log, _ = proc.communicate(timeout=TIMEOUT)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            try:
-                proc.communicate(timeout=5)
-            except Exception:
-                pass
-            return {"success": False, "error": "timeout", "took": TIMEOUT}
-
-        took = time.perf_counter() - started
-        m = TIME_RE.search(log or "")
-        if m:
-            took = float(m.group(1))
-
-        if proc.returncode != 0 or not out_file.exists():
-            tail = (log or "").strip().splitlines()[-1:] or ["unknown error"]
-            return {"success": False, "error": tail[-1][:500], "took": took}
-
-        head = out_file.read_text(errors="ignore")[:6]
-        if head.startswith("--err"):
-            reason = out_file.read_text(errors="ignore")[5:].strip()
-            return {"success": False, "error": reason[:500] or "engine error", "took": took}
-
-        result = out_file.read_text(errors="ignore")
-        return {"success": True, "result": result, "took": took}
+        if response.status_code == 200:
+            return _clean_output(response.text)
+        else:
+            return f"Erro da API: HTTP {response.status_code} - {response.text}"
+    except requests.RequestException as e:
+        return f"Erro de conexao: {e}"
 
 
-@app.route("/deobfuscate", methods=["POST"])
-def deobfuscate():
-    data = request.get_json()
-    if not data or "code" not in data:
-        return jsonify({"success": False, "error": "Missing 'code' field"}), 400
+def deobfuscate_69ms(code: str) -> str:
+    try:
+        response = requests.post(
+            API_69MS,
+            json={"code": code},
+            timeout=120
+        )
 
-    result = run_lute_dump(data["code"])
-    status = 200 if result["success"] else 500
-    return jsonify(result), status
+        data = response.json()
+        if response.status_code == 200 and data.get("success"):
+            return _clean_output(data["result"])
+        else:
+            error = data.get("error", "unknown error")
+            return f"Erro da API: HTTP {response.status_code} - {error}"
+    except requests.RequestException as e:
+        return f"Erro de conexao: {e}"
+    except ValueError:
+        return f"Erro da API: HTTP {response.status_code} - {response.text[:200]}"
 
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok"})
+def deobfuscate_69ms_from_url(url: str) -> str:
+    try:
+        r = requests.get(url, timeout=30)
+        if r.status_code != 200:
+            return f"Erro ao baixar URL: HTTP {r.status_code}"
+        code = r.text
 
+        response = requests.post(
+            API_69MS,
+            json={"code": code},
+            timeout=120
+        )
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+        data = response.json()
+        if response.status_code == 200 and data.get("success"):
+            return _clean_output(data["result"])
+        else:
+            error = data.get("error", "unknown error")
+            return f"Erro da API: HTTP {response.status_code} - {error}"
+    except requests.RequestException as e:
+        return f"Erro de conexao: {e}"
+    except ValueError:
+        return f"Erro da API: HTTP {response.status_code} - {response.text[:200]}"
