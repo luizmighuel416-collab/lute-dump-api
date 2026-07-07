@@ -1,1 +1,1 @@
-web: gunicorn api:app --bind 0.0.0.0:$PORT --timeout 120
+web: curl -L -o lute.zip https://github.com/luau-lang/lute/releases/latest/download/lute-linux-x86_64.zip && unzip -o lute.zip -d . && chmod +x lute && gunicorn api:app --bind 0.0.0.0:$PORT --timeout 120
